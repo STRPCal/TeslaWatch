@@ -142,11 +142,20 @@ def fetch_inventory():
         "Accept-Language": "en-GB,en;q=0.9",
         "Referer": PAGE_URL,
     }
+    # Behave like a browser: open the inventory page first so Tesla hands
+    # over its cookies, then ask the stock API using the same session.
+    session = http.Session(**HTTP_KW) if HTTP_KW else http.Session()
+    page = session.get(PAGE_URL, timeout=30,
+                       headers={"Accept-Language": "en-GB,en;q=0.9"})
+    print(f"Inventory page: HTTP {page.status_code}")
+    time.sleep(random.uniform(2, 4))
+
     while True:
         params = {"query": json.dumps(build_query(offset), separators=(",", ":"))}
-        r = http.get(API_URL, params=params, headers=headers, timeout=30, **HTTP_KW)
+        r = session.get(API_URL, params=params, headers=headers, timeout=30)
         if r.status_code != 200:
-            raise RuntimeError(f"Tesla returned HTTP {r.status_code}")
+            raise RuntimeError(f"Tesla returned HTTP {r.status_code} "
+                               f"(inventory page gave {page.status_code})")
         data = r.json()
         results = data.get("results", [])
         # When nothing matches exactly, Tesla returns {"exact": [], "approximate": [...]}
